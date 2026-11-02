@@ -59,7 +59,7 @@ button{font-family:inherit;color:inherit}
 .sfield{flex:1;height:38px;border-radius:4px;background:#2a2a2e;display:flex;align-items:center;gap:8px;padding:0 10px}
 .sfield input{flex:1;background:none;border:0;outline:0;color:#fff;font-size:15px;min-width:0}
 .sfield input::placeholder{color:rgba(255,255,255,.45)}
-.sadd{background:none;border:0;color:#fe2c55;font-weight:600;font-size:15px;padding:0 6px;cursor:pointer}
+.sadd{white-space:nowrap;background:none;border:0;color:#fe2c55;font-weight:600;font-size:15px;padding:0 6px;cursor:pointer}
 .stat{padding:4px 14px 8px;font-size:13px;color:rgba(255,255,255,.55)}
 .sbody{flex:1;overflow:auto;padding:0 2px 20px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
@@ -69,14 +69,18 @@ button{font-family:inherit;color:inherit}
 .cell .fv{position:absolute;right:6px;top:6px}
 .noresult{padding:40px 20px;text-align:center;color:rgba(255,255,255,.55);font-size:14px;display:none}
 
-/* sheet konfirmasi */
-.sheet{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.6);display:none;align-items:flex-end}
-.sheet.show{display:flex}
-.sheet .box{width:100%;background:#1c1c1f;border-radius:14px 14px 0 0;padding:18px 16px 22px;display:flex;flex-direction:column;gap:12px}
-.sheet .box p{font-size:15px;text-align:center;line-height:1.4}
-.sheet .box button{height:46px;border:0;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer}
-.sheet .del{background:#fe2c55}.sheet .cancel{background:#333}
 .toast{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);background:rgba(40,40,44,.95);padding:9px 16px;border-radius:8px;font-size:13px;z-index:50;display:none}
+#folderWrap{display:none}
+.hd{padding:12px 12px 6px;font-size:14px;font-weight:600;color:rgba(255,255,255,.7)}
+.fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:0 10px 8px}
+.fcard{background:none;border:0;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;color:#fff}
+.fcard .cv{position:relative;aspect-ratio:1/1;background:#1a1a1d;border-radius:8px;overflow:hidden}
+.fcard .cv img,.fcard .cv video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.fcard .cv .all{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25)}
+.fcard .fn{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fcard .fc{font-size:12px;color:rgba(255,255,255,.55);margin-top:-4px}
+body.native .phone{max-width:none;max-height:none}
+body.native{align-items:stretch}
 </style>
 </head>
 <body>
@@ -107,9 +111,6 @@ button{font-family:inherit;color:inherit}
     <div class="rail" id="rail" style="display:none">
       <button class="heart" id="likeBtn" aria-label="Suka">
         <svg width="34" height="34" viewBox="0 0 24 24" class="ic-f"><path d="M12 21s-8-5.2-8-11a4.7 4.7 0 018-3.3A4.7 4.7 0 0120 10c0 5.8-8 11-8 11z"/></svg>
-      </button>
-      <button id="delBtn" aria-label="Hapus">
-        <svg width="30" height="30" viewBox="0 0 24 24" class="ic"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
       </button>
     </div>
 
@@ -145,18 +146,13 @@ button{font-family:inherit;color:inherit}
     </div>
     <div class="stat" id="stat"></div>
     <div class="sbody">
+      <div id="folderWrap"><div class="hd" id="hdFolder">Folder</div><div class="fgrid" id="folders"></div></div>
+      <div class="hd" id="hdFiles" style="display:none">Berkas</div>
       <div class="grid" id="grid"></div>
       <div class="noresult" id="noresult">Tidak ada hasil.</div>
     </div>
   </section>
 
-  <div class="sheet" id="sheet">
-    <div class="box">
-      <p id="sheetTxt">Hapus item ini dari galeri?</p>
-      <button class="del" id="sheetOk">Hapus</button>
-      <button class="cancel" id="sheetNo">Batal</button>
-    </div>
-  </div>
   <div class="toast" id="toast"></div>
   <input type="file" id="file" accept="image/*,video/*" multiple hidden>
 </div>
@@ -192,7 +188,7 @@ function dbDel(id){return new Promise(res=>{
 })}
 
 /* ---------- state ---------- */
-let items=[], urls={}, soundOn=false, curId=null, pendingDel=null;
+let items=[], view=[], curFolder=null, urls={}, soundOn=false, curId=null;
 const $=id=>document.getElementById(id);
 const feed=$('feed'), grid=$('grid');
 const isVid=it=>it.type.startsWith('video');
@@ -224,38 +220,71 @@ function unmount(s){
   s.dataset.m='';s.onclick=null;
   s.querySelectorAll('video,img').forEach(e=>{if(e.tagName==='VIDEO'){e.pause();e.removeAttribute('src');e.load()}e.remove()});
 }
-function renderFeed(keepId){
+function renderFeed(keepId,list){
+  view=list||items;
   io.disconnect();near.disconnect();
   feed.innerHTML='';
-  items.forEach(it=>{
+  view.forEach(it=>{
     const s=document.createElement('div');
     s.className='slide';s.dataset.id=it.id;
     s.innerHTML=isVid(it)?'<div class="pausei"><svg width="34" height="34" viewBox="0 0 24 24" class="ic-f"><path d="M7 4l13 8-13 8z"/></svg></div><div class="prog"></div>':'';
     feed.appendChild(s);io.observe(s);near.observe(s);
   });
-  const has=items.length>0;
+  const has=view.length>0;
   $('empty').style.display=has?'none':'flex';
   $('rail').style.display=has?'flex':'none';
   $('infoBox').style.display=has?'block':'none';
   $('count').style.display=has?'inline-block':'none';
   if(has){
-    const target=keepId!=null&&items.find(i=>i.id==keepId)?keepId:items[0].id;
+    const target=keepId!=null&&view.find(i=>i.id==keepId)?keepId:view[0].id;
     const el=feed.querySelector(`.slide[data-id="${target}"]`);if(el)mount(el);
     goTo(target,true);
     setCurrent(target);
   }
 }
+const folderKey=it=>it.folder||'Unggahan';
+function folderList(){
+  const m=new Map();
+  items.forEach(it=>{const k=folderKey(it);
+    if(!m.has(k))m.set(k,{key:k,name:k.split('/').filter(Boolean).pop()||k,items:[]});
+    m.get(k).items.push(it)});
+  return [...m.values()].sort((a,b)=>b.items[0].added-a.items[0].added);
+}
+function coverHTML(it){return isVid(it)?`<video src="${url(it)}#t=0.1" muted playsinline preload="metadata"></video>`:`<img src="${url(it)}" loading="lazy" alt="">`}
+function folderCard(name,count,cover,onclick,all){
+  const b=document.createElement('button');b.className='fcard';
+  b.innerHTML=`<div class="cv">${cover?coverHTML(cover):''}${all?'<div class="all"><svg width="30" height="30" viewBox="0 0 24 24" class="ic"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg></div>':''}</div><div class="fn"></div><div class="fc">${count} item</div>`;
+  b.querySelector('.fn').textContent=name;
+  b.onclick=onclick;return b;
+}
+function folderItems(){return !curFolder||curFolder.all?items:items.filter(i=>folderKey(i)===curFolder.key)}
 function renderGrid(){
   const q=$('q').value.trim().toLowerCase();
-  gridList=items.filter(i=>i.name.toLowerCase().includes(q));
-  const list=gridList;
-  grid.innerHTML='';gridShown=0;
-  appendCells(PAGE);
-  $('stat').textContent=items.length?`${list.length} dari ${items.length} item`:'';
-  $('noresult').style.display=items.length&&!list.length?'block':'none';
-  if(!items.length){$('noresult').textContent=NATIVE?'Tidak ada foto/video, atau izin belum diberikan.':'Belum ada isi. Ketuk "Tambah".';$('noresult').style.display='block'}
-  else $('noresult').textContent='Tidak ada hasil.';
+  const nameOk=i=>i.name.toLowerCase().includes(q);
+  const fl=$('folders');fl.innerHTML='';
+  let showFolders=false;
+  if(!curFolder){
+    let fs=folderList();
+    if(q)fs=fs.filter(f=>f.name.toLowerCase().includes(q));
+    if(!q&&items.length)fl.appendChild(folderCard('Semua',items.length,items[0],()=>openFolder({key:'*',name:'Semua',all:true}),true));
+    fs.forEach(f=>fl.appendChild(folderCard(f.name,f.items.length,f.items[0],()=>openFolder(f))));
+    showFolders=fl.children.length>0;
+    gridList=q?items.filter(nameOk):[];
+  }else{
+    gridList=folderItems().filter(nameOk);
+  }
+  $('folderWrap').style.display=showFolders?'block':'none';
+  $('hdFiles').style.display=!curFolder&&gridList.length?'block':'none';
+  grid.innerHTML='';gridShown=0;appendCells(PAGE);
+  $('q').placeholder=curFolder?'Cari di '+curFolder.name:'Cari folder atau nama file';
+  $('stat').textContent=curFolder?`${curFolder.name} · ${gridList.length} item`:(items.length&&!q?`${folderList().length} folder · ${items.length} item`:'');
+  const none=items.length&&!showFolders&&!gridList.length;
+  const nr=$('noresult');
+  if(!items.length){nr.textContent=NATIVE?'Tidak ada foto/video, atau izin belum diberikan.':'Belum ada isi. Ketuk "Tambah".';nr.style.display='block'}
+  else if(none){nr.textContent='Tidak ada hasil.';nr.style.display='block'}
+  else nr.style.display='none';
 }
+function openFolder(f){curFolder=f;$('q').value='';renderGrid();document.querySelector('.sbody').scrollTop=0}
 let gridList=[],gridShown=0;const PAGE=90;
 function appendCells(n){
   const list=gridList.slice(gridShown,gridShown+n);gridShown+=list.length;
@@ -263,7 +292,7 @@ function appendCells(n){
     const c=document.createElement('button');c.className='cell';c.setAttribute('aria-label',it.name);
     c.innerHTML=(isVid(it)?`<video src="${url(it)}#t=0.1" muted playsinline preload="metadata"></video><div class="vb">${ICON_PLAY}</div>`
                           :`<img src="${url(it)}" loading="lazy" alt="">`)+(it.fav?`<div class="fv">${ICON_HEART_S}</div>`:'');
-    c.onclick=()=>{closeSearch();goTo(it.id,true);setCurrent(it.id)};
+    c.onclick=()=>{const list=curFolder?folderItems():items;closeSearch();renderFeed(it.id,list)};
     grid.appendChild(c);
   });
 }
@@ -278,11 +307,11 @@ function goTo(id,instant){
 }
 function setCurrent(id){
   curId=id;
-  const it=items.find(i=>i.id==id);if(!it)return;
+  const it=view.find(i=>i.id==id)||items.find(i=>i.id==id);if(!it)return;
   $('infoNm').textContent=baseName(it.name);
   $('infoMt').textContent=(isVid(it)?'Video':'Foto')+' · '+fmt(it.added);
   $('likeBtn').classList.toggle('on',!!it.fav);
-  $('count').textContent=(items.indexOf(it)+1)+' / '+items.length;
+  $('count').textContent=(view.indexOf(it)+1)+' / '+view.length;
 }
 const io=new IntersectionObserver(es=>{
   es.forEach(e=>{
@@ -299,13 +328,13 @@ const near=new IntersectionObserver(es=>{
 },{root:feed,rootMargin:'100% 0px'});
 
 /* ---------- menu galeri ---------- */
-function openSearch(){renderGrid();$('search').classList.add('open');$('search').setAttribute('aria-hidden','false');
+function openSearch(){curFolder=null;$('q').value='';renderGrid();$('search').classList.add('open');$('search').setAttribute('aria-hidden','false');
   $('navHome').classList.remove('on');$('navGal').classList.add('on')}
 function closeSearch(){$('search').classList.remove('open');$('search').setAttribute('aria-hidden','true');$('q').blur();
   $('navHome').classList.add('on');$('navGal').classList.remove('on')}
 $('openSearch').onclick=openSearch;$('navGal').onclick=openSearch;
-$('closeSearch').onclick=closeSearch;
-$('navHome').onclick=()=>{closeSearch();if(items.length)goTo(items[0].id)};
+$('closeSearch').onclick=()=>{ if(curFolder){curFolder=null;$('q').value='';renderGrid()} else closeSearch() };
+$('navHome').onclick=()=>{closeSearch();if(view.length)goTo(view[0].id)};
 $('q').oninput=renderGrid;
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSearch()});
 
@@ -334,25 +363,6 @@ $('likeBtn').onclick=async()=>{
   else await dbPut(it);
   $('likeBtn').classList.toggle('on',it.fav);
 };
-$('delBtn').onclick=()=>{
-  const it=items.find(i=>i.id==curId);if(!it)return;
-  pendingDel=it.id;
-  $('sheetTxt').textContent='Hapus "'+baseName(it.name)+'" dari galeri? Tindakan ini tidak bisa dibatalkan.';
-  $('sheet').classList.add('show');
-};
-$('sheetNo').onclick=()=>{pendingDel=null;$('sheet').classList.remove('show')};
-$('sheetOk').onclick=async()=>{
-  const id=pendingDel;pendingDel=null;$('sheet').classList.remove('show');
-  if(id==null)return;
-  const idx=items.findIndex(i=>i.id==id);
-  await dbDel(id);
-  if(urls[id]){URL.revokeObjectURL(urls[id]);delete urls[id]}
-  items=items.filter(i=>i.id!=id);
-  const next=items[Math.min(idx,items.length-1)];
-  renderFeed(next?next.id:null);renderGrid();
-  toast('Item dihapus');
-};
-
 /* ---------- suara ---------- */
 $('sound').onclick=()=>{
   soundOn=!soundOn;
@@ -361,20 +371,29 @@ $('sound').onclick=()=>{
   feed.querySelectorAll('video').forEach(v=>v.muted=!soundOn);
 };
 
+window.addEventListener('error',e=>{
+  if(e.target&&(e.target.tagName==='IMG'||e.target.tagName==='VIDEO')){toast('Gagal memuat media');return}
+  if(NATIVE)showEmpty('Terjadi error',String(e.message||e),'Coba lagi');
+},true);
+window.addEventListener('unhandledrejection',e=>{if(NATIVE)showEmpty('Terjadi error',String((e.reason&&e.reason.message)||e.reason),'Coba lagi')});
+
 /* ---------- mulai: langsung ke preview ---------- */
 async function loadNative(manual){
-  const G=Capacitor.registerPlugin('Gallery');
+  showEmpty('Memuat galeri…','Meminta izin dan membaca foto/video.<br>Jika muncul permintaan izin, ketuk <b>Izinkan</b>.','Muat ulang');
   try{
+    const G=Capacitor.registerPlugin('Gallery');
     const r=await G.list({limit:3000});
     const favs=new Set(JSON.parse(localStorage.getItem('favs')||'[]'));
     items=r.items.map(o=>({id:'m'+o.id,name:o.name||'media',type:o.type||'image/jpeg',added:o.added,
-      src:Capacitor.convertFileSrc('file://'+o.path),fav:favs.has('m'+o.id)})).sort((a,b)=>b.added-a.added);
+      src:Capacitor.convertFileSrc('file://'+o.path),folder:o.path.replace(/\/[^\/]*$/,''),fav:favs.has('m'+o.id)})).sort((a,b)=>b.added-a.added);
     renderFeed();renderGrid();
     if(manual)toast(items.length+' item dimuat');
     if(!items.length)showEmpty('Galeri kosong','Tidak ada foto atau video di HP ini.','Muat ulang');
   }catch(e){
     items=[];renderFeed();renderGrid();
-    showEmpty('Izin galeri diperlukan','Aplikasi perlu izin membaca foto dan video agar galeri tampil. File tidak diubah atau diunggah.','Beri izin');
+    const m=(e&&(e.message||e.code||String(e)))||'';
+    if(/DENIED/i.test(m))showEmpty('Izin galeri diperlukan','Aplikasi perlu izin membaca foto dan video agar galeri tampil. File tidak diubah atau diunggah.','Beri izin');
+    else showEmpty('Galeri gagal dibaca','Pesan: '+m,'Coba lagi');
   }
 }
 function showEmpty(h,p,b){
@@ -382,7 +401,7 @@ function showEmpty(h,p,b){
 }
 (async()=>{
   if(NATIVE){
-    $('delBtn').style.display='none';
+    document.body.classList.add('native');
     $('sAdd').textContent='Muat ulang';
     await loadNative();
   }else{
