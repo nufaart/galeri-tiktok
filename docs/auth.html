@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Masuk ke Google — galeri-live</title>
+<meta name="theme-color" content="#000000">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#000;color:#fff;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;justify-content:center}
+main{width:100%;max-width:440px;padding:48px 22px;display:flex;flex-direction:column;gap:20px}
+h1{font-size:24px}
+p{color:rgba(255,255,255,.7);font-size:15px;line-height:1.55}
+.btn{display:block;width:100%;text-align:center;background:#fe2c55;color:#fff;border:0;text-decoration:none;font-weight:700;font-size:17px;padding:16px 18px;border-radius:12px;cursor:pointer}
+.btn[disabled]{opacity:.5}
+#back{display:none;background:#2a2a2e}
+#msg{min-height:22px;color:#ffb3c0;font-size:14px}
+#msg.ok{color:#9be7a8}
+.note{font-size:12px;color:rgba(255,255,255,.45)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Masuk ke Google</h1>
+  <p>galeri-live meminta izin untuk membaca <b>hanya foto dan video yang Anda pilih sendiri</b> di Google Foto. Aplikasi tidak bisa melihat atau mengubah foto lain.</p>
+  <button class="btn" id="go">Lanjutkan dengan Google</button>
+  <a class="btn" id="back" href="#">Kembali ke aplikasi</a>
+  <p id="msg"></p>
+  <p class="note">Jika muncul peringatan "Google belum memverifikasi aplikasi ini", pilih Lanjutan lalu lanjutkan. Itu normal untuk aplikasi pribadi.</p>
+</main>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+var cid=new URLSearchParams(location.search).get('cid')||'';
+var msg=document.getElementById('msg'),back=document.getElementById('back');
+function say(t,ok){msg.textContent=t;msg.className=ok?'ok':''}
+document.getElementById('go').onclick=function(){
+  if(!cid){say('Client ID tidak ditemukan. Buka halaman ini dari aplikasi.');return}
+  if(!window.google||!google.accounts||!google.accounts.oauth2){say('Layanan Google belum siap. Tunggu sebentar lalu coba lagi.');return}
+  var tc=google.accounts.oauth2.initTokenClient({
+    client_id:cid,
+    scope:'https://www.googleapis.com/auth/photospicker.mediaitems.readonly',
+    callback:function(r){
+      if(r.error){say('Gagal: '+r.error);return}
+      var u='galerilive://auth?token='+encodeURIComponent(r.access_token)+'&exp='+encodeURIComponent(r.expires_in||3500);
+      back.href=u;back.style.display='block';
+      say('Berhasil. Ketuk "Kembali ke aplikasi".',true);
+      location.href=u;
+    },
+    error_callback:function(e){say('Dibatalkan'+(e&&e.type?' ('+e.type+')':''))}
+  });
+  tc.requestAccessToken({prompt:''});
+};
+</script>
+</body>
+</html>
