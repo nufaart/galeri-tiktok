@@ -15,6 +15,14 @@ add='''    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" 
 '''
 if 'READ_MEDIA_IMAGES' not in s:
     s=s.replace('</manifest>',add+'</manifest>')
+if 'galerilive' not in s:
+    s=s.replace('</activity>','''        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="galerilive" android:host="auth" />
+        </intent-filter>
+    </activity>''',1)
 open(p,'w').write(s)
 PY
 
