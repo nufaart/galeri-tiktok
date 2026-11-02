@@ -71,6 +71,16 @@ button{font-family:inherit;color:inherit}
 
 .toast{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);background:rgba(40,40,44,.95);padding:9px 16px;border-radius:8px;font-size:13px;z-index:50;display:none}
 #folderWrap{display:none}
+.upd{display:none;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 10px;margin:2px 12px 6px;padding:9px 12px;background:#1a1a1d;border-radius:8px;font-size:13px}
+.upd .ut{flex:1;min-width:0;line-height:1.35}
+.upd .us{color:rgba(255,255,255,.55);font-size:12px}
+.upd button{background:#2a2a2e;border:0;border-radius:6px;padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
+.upd button[disabled]{opacity:.5}
+.upd.avail button{background:#fe2c55}
+.upd .pb{width:100%;height:3px;background:#2a2a2e;border-radius:2px;overflow:hidden;display:none}
+.upd .pb i{display:block;height:100%;width:0;background:#fe2c55}
+.nav button{position:relative}
+.nav .dot{display:none;position:absolute;top:4px;left:calc(50% + 8px);width:9px;height:9px;border-radius:50%;background:#fe2c55;border:2px solid #000}
 :root{--sat:var(--jt,max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px)));--sab:var(--jb,max(env(safe-area-inset-bottom,0px),var(--safe-area-inset-bottom,0px)))}
 .top{top:var(--sat)}
 .nav{height:calc(56px + var(--sab));padding-bottom:var(--sab)}
@@ -137,7 +147,7 @@ body.native{align-items:stretch}
         <div class="plusbtn"><i><svg width="20" height="20" viewBox="0 0 24 24" style="fill:none;stroke:#000;stroke-width:3;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg></i></div>
       </button>
       <button id="navGal">
-        <svg width="26" height="26" viewBox="0 0 24 24" class="ic"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg>Galeri
+        <svg width="26" height="26" viewBox="0 0 24 24" class="ic"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg>Galeri<i class="dot" id="navDot"></i>
       </button>
     </nav>
   </section>
@@ -153,6 +163,11 @@ body.native{align-items:stretch}
         <input id="q" type="search" placeholder="Cari nama file" autocomplete="off">
       </div>
       <button class="sadd" id="sAdd">Tambah</button>
+    </div>
+    <div class="upd" id="upd">
+      <div class="ut"><div id="updTxt">Versi aplikasi</div><div class="us" id="updSub"></div></div>
+      <button id="updBtn">Cek update</button>
+      <div class="pb" id="updPb"><i id="updBar"></i></div>
     </div>
     <div class="stat" id="stat"></div>
     <div class="sbody">
@@ -392,6 +407,77 @@ $('likeBtn').onclick=async()=>{
   else await dbPut(it);
   $('likeBtn').classList.toggle('on',it.fav);
 };
+/* ---------- update aplikasi (GitHub Releases) ---------- */
+const REPO='nufaart/galeri-tiktok';
+const upd={local:0,name:'',remote:0,url:'',busy:false,dlTag:0,checked:false};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function updUI(txt,sub,avail,btn,disabled){
+  $('upd').style.display='flex';
+  $('updTxt').textContent=txt;$('updSub').textContent=sub||'';
+  $('upd').classList.toggle('avail',!!avail);
+  $('updBtn').textContent=btn;$('updBtn').disabled=!!disabled;
+  $('navDot').style.display=(upd.remote>upd.local)?'block':'none';
+}
+function updIdle(){
+  if(upd.remote>upd.local)updUI('Update tersedia: versi '+upd.remote,'Terpasang: versi '+upd.local,true,'Update');
+  else updUI('Aplikasi sudah terbaru',upd.local?'Versi '+upd.local:'',false,'Cek update');
+}
+async function checkUpdate(manual){
+  const G=Capacitor.Plugins.Gallery;
+  if(!upd.local){try{const v=await G.getVersion();upd.local=Number(v.code);upd.name=v.name}catch(_){}}
+  updUI('Mengecek update…','',false,'Cek update',true);
+  try{
+    const r=await fetch('https://api.github.com/repos/'+REPO+'/releases/latest',{headers:{Accept:'application/vnd.github+json'}});
+    if(r.status===404){upd.remote=0;updUI('Belum ada rilis di GitHub','Versi terpasang: '+upd.local,false,'Cek update');return}
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    const a=(j.assets||[]).find(x=>/\.apk$/i.test(x.name));
+    upd.remote=parseInt(String(j.tag_name).replace(/\D/g,''),10)||0;
+    upd.url=a?a.browser_download_url:'';
+    upd.checked=true;
+    updIdle();
+    if(manual&&!(upd.remote>upd.local))toast('Sudah versi terbaru');
+  }catch(e){
+    updUI('Gagal mengecek update',String(e.message||e)+' — periksa internet','' ,'Coba lagi');
+  }
+}
+async function doUpdate(){
+  if(upd.busy)return;
+  if(!(upd.remote>upd.local)){checkUpdate(true);return}
+  upd.busy=true;
+  const G=Capacitor.Plugins.Gallery,pb=$('updPb'),bar=$('updBar');
+  try{
+    let st=await G.status();
+    if(st.state!=='ready'||upd.dlTag!==upd.remote){
+      if(!upd.url)throw new Error('File APK tidak ada di rilis');
+      pb.style.display='block';bar.style.width='0';
+      await G.download({url:upd.url});
+      upd.dlTag=upd.remote;
+      for(;;){
+        await sleep(400);st=await G.status();
+        updUI('Mengunduh update… '+st.percent+'%','Jangan tutup aplikasi',true,'Update',true);
+        bar.style.width=st.percent+'%';
+        if(st.state==='ready')break;
+        if(st.state==='error')throw new Error(st.error||'unduhan gagal');
+      }
+    }
+    pb.style.display='none';
+    try{
+      await G.install();
+      updUI('Ikuti layar pemasangan Android','Ketuk Pasang / Install, lalu buka aplikasi lagi',true,'Update');
+    }catch(e){
+      const m=String((e&&(e.message||e.code))||e);
+      if(/NEED_PERMISSION/.test(m))updUI('Izin pemasangan diperlukan','Aktifkan "Izinkan dari sumber ini" untuk Galeri, kembali ke aplikasi, lalu ketuk Update lagi',true,'Update');
+      else throw e;
+    }
+  }catch(e){
+    pb.style.display='none';
+    upd.dlTag=0;
+    updUI('Update gagal',String((e&&e.message)||e),true,'Coba lagi');
+  }finally{upd.busy=false}
+}
+$('updBtn').onclick=()=>{ if(upd.remote>upd.local)doUpdate(); else checkUpdate(true) };
+
 /* ---------- suara ---------- */
 $('sound').onclick=()=>{
   soundOn=!soundOn;
@@ -439,6 +525,7 @@ function showEmpty(h,p,b){
     document.body.classList.add('native');
     $('sAdd').textContent='Muat ulang';
     await loadNative();
+    checkUpdate(false);
   }else{
     await openDB();
     items=(await dbAll()).sort((a,b)=>b.added-a.added);
