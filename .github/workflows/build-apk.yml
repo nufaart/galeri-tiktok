@@ -3,9 +3,15 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      APP_BUILD: ${{ github.run_number }}
+      KS_PASS: galeri-ks-pass
+      KS_ALIAS: galeri
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,6 +21,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - name: Siapkan kunci penandatanganan
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/galeri.keystore"
+            echo "KS_PATH=$RUNNER_TEMP/galeri.keystore" >> "$GITHUB_ENV"
+          fi
       - run: mkdir -p www && cp index.html www/index.html
       - run: npm install
       - run: npx cap add android
@@ -27,3 +41,10 @@ jobs:
         with:
           name: Galeri-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Terbitkan rilis (untuk tombol Update di aplikasi)
+        if: env.KS_PATH != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Galeri.apk
+          gh release create "v${{ github.run_number }}" Galeri.apk --title "Galeri v${{ github.run_number }}" --notes "Build otomatis #${{ github.run_number }}" --latest
