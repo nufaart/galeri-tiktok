@@ -26,7 +26,7 @@ button{font-family:inherit;color:inherit}
 .slide.paused .pausei{display:flex}
 
 .top{position:absolute;top:0;left:0;right:0;height:56px;padding-top:6px;display:flex;align-items:center;justify-content:center;z-index:10;font-weight:600;font-size:16px;pointer-events:none}
-.top #count{background:rgba(0,0,0,.35);padding:4px 12px;border-radius:14px;font-size:13px;font-variant-numeric:tabular-nums}
+.top #count{max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.35);padding:4px 12px;border-radius:14px;font-size:13px;font-variant-numeric:tabular-nums}
 .top button{pointer-events:auto;position:absolute;top:14px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:none;border:0;cursor:pointer}
 #openSearch{right:14px}
 #sound{left:14px}
@@ -71,6 +71,16 @@ button{font-family:inherit;color:inherit}
 
 .toast{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);background:rgba(40,40,44,.95);padding:9px 16px;border-radius:8px;font-size:13px;z-index:50;display:none}
 #folderWrap{display:none}
+:root{--sat:var(--jt,max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px)));--sab:var(--jb,max(env(safe-area-inset-bottom,0px),var(--safe-area-inset-bottom,0px)))}
+.top{top:var(--sat)}
+.nav{height:calc(56px + var(--sab));padding-bottom:var(--sab)}
+#feed{bottom:calc(56px + var(--sab))}
+.empty{bottom:calc(56px + var(--sab))}
+.rail{bottom:calc(84px + var(--sab))}
+.info{bottom:calc(72px + var(--sab))}
+.toast{bottom:calc(76px + var(--sab))}
+.sbar{padding-top:calc(12px + var(--sat))}
+.sbody{padding-bottom:var(--sab)}
 .hd{padding:12px 12px 6px;font-size:14px;font-weight:600;color:rgba(255,255,255,.7)}
 .fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:0 10px 8px}
 .fcard{background:none;border:0;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;color:#fff}
@@ -188,7 +198,7 @@ function dbDel(id){return new Promise(res=>{
 })}
 
 /* ---------- state ---------- */
-let items=[], view=[], curFolder=null, urls={}, soundOn=false, curId=null;
+let items=[], view=[], viewName='Semua', curFolder=null, urls={}, soundOn=false, curId=null;
 const $=id=>document.getElementById(id);
 const feed=$('feed'), grid=$('grid');
 const isVid=it=>it.type.startsWith('video');
@@ -221,8 +231,9 @@ function unmount(s){
   s.dataset.m='';s.onclick=null;
   s.querySelectorAll('video,img').forEach(e=>{if(e.tagName==='VIDEO'){e.pause();e.removeAttribute('src');e.load()}e.remove()});
 }
-function renderFeed(keepId,list){
-  view=list||items;
+window.__insets=(t,b)=>{const r=document.documentElement.style;r.setProperty('--jt',t+'px');r.setProperty('--jb',b+'px')};
+function renderFeed(keepId,list,name){
+  view=list||items;viewName=name||'Semua';
   io.disconnect();near.disconnect();
   feed.innerHTML='';
   view.forEach(it=>{
@@ -294,7 +305,7 @@ function appendCells(n){
     const c=document.createElement('button');c.className='cell';c.setAttribute('aria-label',it.name);
     c.innerHTML=(isVid(it)?`<video src="${url(it)}#t=0.1" muted playsinline preload="metadata"></video><div class="vb">${ICON_PLAY}</div>`
                           :`<img src="${url(it)}" loading="lazy" alt="">`)+(it.fav?`<div class="fv">${ICON_HEART_S}</div>`:'');
-    c.onclick=()=>{const list=curFolder?folderItems():items;closeSearch();renderFeed(it.id,list)};
+    c.onclick=()=>{const list=curFolder?folderItems():items;const nm=curFolder?curFolder.name:'Semua';closeSearch();renderFeed(it.id,list,nm)};
     grid.appendChild(c);
   });
 }
@@ -313,7 +324,7 @@ function setCurrent(id){
   $('infoNm').textContent=baseName(it.name);
   $('infoMt').textContent=(isVid(it)?'Video':'Foto')+' · '+fmt(it.added);
   $('likeBtn').classList.toggle('on',!!it.fav);
-  $('count').textContent=(view.indexOf(it)+1)+' / '+view.length;
+  $('count').textContent=viewName+' · '+(view.indexOf(it)+1)+' / '+view.length;
 }
 let bgPaused=false, searchOpen=false;
 function playCurrent(){
@@ -397,14 +408,19 @@ window.addEventListener('error',e=>{
 window.addEventListener('unhandledrejection',e=>{if(NATIVE)showEmpty('Terjadi error',String((e.reason&&e.reason.message)||e.reason),'Coba lagi')});
 
 /* ---------- mulai: langsung ke preview ---------- */
+function fileSrc(p){
+  try{ if(typeof Capacitor.convertFileSrc==='function'){const u=Capacitor.convertFileSrc('file://'+p); if(u&&!u.startsWith('file://'))return u} }catch(_){}
+  return location.origin+'/_capacitor_file_'+p;
+}
 async function loadNative(manual){
   showEmpty('Memuat galeri…','Meminta izin dan membaca foto/video.<br>Jika muncul permintaan izin, ketuk <b>Izinkan</b>.','Muat ulang');
   try{
-    const G=Capacitor.registerPlugin('Gallery');
+    const G=(Capacitor.Plugins&&Capacitor.Plugins.Gallery)||(typeof Capacitor.registerPlugin==='function'&&Capacitor.registerPlugin('Gallery'));
+    if(!G)throw new Error('Plugin galeri tidak terdaftar di aplikasi');
     const r=await G.list({limit:3000});
     const favs=new Set(JSON.parse(localStorage.getItem('favs')||'[]'));
     items=r.items.map(o=>({id:'m'+o.id,name:o.name||'media',type:o.type||'image/jpeg',added:o.added,
-      src:Capacitor.convertFileSrc('file://'+o.path),folder:o.path.replace(/\/[^\/]*$/,''),fav:favs.has('m'+o.id)})).sort((a,b)=>b.added-a.added);
+      src:fileSrc(o.path),folder:o.path.replace(/\/[^\/]*$/,''),fav:favs.has('m'+o.id)})).sort((a,b)=>b.added-a.added);
     renderFeed();renderGrid();
     if(manual)toast(items.length+' item dimuat');
     if(!items.length)showEmpty('Galeri kosong','Tidak ada foto atau video di HP ini.','Muat ulang');
