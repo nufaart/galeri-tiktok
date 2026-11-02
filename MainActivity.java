@@ -1,5 +1,7 @@
 package com.iqbal.galeri;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -10,6 +12,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 import java.io.File;
+import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     /** Batas cache + data WebView. Jika terlewati, cache dibersihkan otomatis. */
@@ -47,6 +50,28 @@ public class MainActivity extends BridgeActivity {
         h.postDelayed(this::sendInsets, 300);
         h.postDelayed(this::sendInsets, 1000);
         h.postDelayed(this::sendInsets, 2500);
+        h.postDelayed(() -> handleAuth(getIntent()), 1500);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleAuth(intent);
+    }
+
+    /** Terima token login Google dari halaman login (galerilive://auth?token=...). */
+    private void handleAuth(Intent intent) {
+        try {
+            if (intent == null) return;
+            Uri d = intent.getData();
+            if (d == null || !"galerilive".equals(d.getScheme())) return;
+            String t = d.getQueryParameter("token");
+            String e = d.getQueryParameter("exp");
+            if (t == null || t.isEmpty()) return;
+            String js = "window.__gauth&&window.__gauth(" + JSONObject.quote(t) + ","
+                + JSONObject.quote(e == null ? "3500" : e) + ")";
+            getBridge().getWebView().evaluateJavascript(js, null);
+        } catch (Exception ignored) {}
     }
 
     /** Hapus isi sebuah folder (folder itu sendiri dibiarkan). */
