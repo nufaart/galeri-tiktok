@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>galeri-live — Unduh</title>
+<meta name="description" content="Galeri HP dengan tampilan scroll ala TikTok. Unduh APK untuk Android.">
+<meta name="theme-color" content="#000000">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#000;color:#fff;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;min-height:100vh;display:flex;justify-content:center}
+main{width:100%;max-width:460px;padding:36px 22px 48px;display:flex;flex-direction:column;gap:26px}
+.logo{width:84px;height:84px;border-radius:22px;background:#111;display:flex;align-items:center;justify-content:center;position:relative;margin:0 auto}
+.logo::before,.logo::after{content:"";position:absolute;inset:0;border-radius:22px}
+.logo::before{background:#25f4ee;transform:translate(-3px,0)}
+.logo::after{background:#fe2c55;transform:translate(3px,0)}
+.logo i{position:relative;z-index:2;width:100%;height:100%;border-radius:22px;background:#fff;display:flex;align-items:center;justify-content:center}
+h1{font-size:30px;text-align:center;letter-spacing:-.5px}
+.sub{text-align:center;color:rgba(255,255,255,.65);font-size:16px;line-height:1.5;margin-top:-14px}
+.dl{display:flex;flex-direction:column;align-items:center;gap:10px}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fe2c55;color:#fff;text-decoration:none;font-weight:700;font-size:18px;padding:17px 20px;border-radius:12px}
+.btn:active{transform:scale(.98)}
+.meta{color:rgba(255,255,255,.55);font-size:13px;min-height:18px;text-align:center}
+.card{background:#141416;border-radius:14px;padding:18px 18px 8px}
+.card h2{font-size:16px;margin-bottom:12px}
+ol{list-style:none;counter-reset:s}
+li{counter-increment:s;display:flex;gap:12px;padding:0 0 14px;font-size:15px;line-height:1.45;color:rgba(255,255,255,.85)}
+li::before{content:counter(s);flex:none;width:24px;height:24px;border-radius:50%;background:#2a2a2e;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+li b{color:#fff}
+.note{font-size:13px;color:rgba(255,255,255,.5);line-height:1.5;text-align:center}
+.warn{display:none;background:#2a1a1d;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.45;color:#ffb3c0}
+</style>
+</head>
+<body>
+<main>
+  <div class="logo"><i>
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg>
+  </i></div>
+  <h1>galeri-live</h1>
+  <p class="sub">Lihat isi galeri HP dengan tampilan scroll seperti TikTok. Video langsung terputar, foto tampil layar penuh.</p>
+
+  <div class="warn" id="warn">Aplikasi ini hanya untuk Android. Buka halaman ini di HP Android Anda.</div>
+
+  <div class="dl">
+    <a class="btn" id="dl" href="https://github.com/nufaart/galeri-tiktok/releases/latest/download/Galeri.apk">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+      Unduh APK
+    </a>
+    <div class="meta" id="meta">Memeriksa versi terbaru…</div>
+  </div>
+
+  <section class="card">
+    <h2>Cara memasang</h2>
+    <ol>
+      <li><span>Ketuk <b>Unduh APK</b>, tunggu sampai selesai.</span></li>
+      <li><span>Buka file yang terunduh. Jika diminta, izinkan <b>pasang dari sumber ini</b>.</span></li>
+      <li><span>Ketuk <b>Pasang</b>. Jika muncul peringatan Play Protect, pilih <b>Tetap instal</b>.</span></li>
+      <li><span>Buka <b>galeri-live</b> lalu ketuk <b>Izinkan</b> untuk akses foto dan video.</span></li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h2>Memperbarui aplikasi</h2>
+    <ol>
+      <li><span>Buka aplikasi, ketuk ikon <b>cari</b> atau tombol <b>Galeri</b>.</span></li>
+      <li><span>Jika ada versi baru, ketuk <b>Update</b>, lalu <b>Pasang</b>. Tidak perlu kembali ke halaman ini.</span></li>
+    </ol>
+  </section>
+
+  <p class="note">File di HP Anda hanya dibaca, tidak diubah, dihapus, atau diunggah ke mana pun.</p>
+</main>
+<script>
+if(!/android/i.test(navigator.userAgent))document.getElementById('warn').style.display='block';
+(async()=>{
+  const m=document.getElementById('meta');
+  try{
+    const r=await fetch('https://api.github.com/repos/nufaart/galeri-tiktok/releases/latest');
+    if(!r.ok)throw 0;
+    const j=await r.json();
+    const a=(j.assets||[]).find(x=>/\.apk$/i.test(x.name));
+    const mb=a?(a.size/1048576).toFixed(1)+' MB':'';
+    const d=new Date(j.published_at).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+    m.textContent='Versi '+String(j.tag_name).replace(/^v/,'')+(mb?' · '+mb:'')+' · '+d;
+  }catch(e){m.textContent='Android 7.0 ke atas';}
+})();
+</script>
+</body>
+</html>
