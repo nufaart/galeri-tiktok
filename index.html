@@ -232,7 +232,7 @@ function mount(s){
   const it=items.find(i=>i.id==s.dataset.id);if(!it)return;
   s.dataset.m='1';
   if(isVid(it)){
-    s.insertAdjacentHTML('afterbegin',`<video class="main" src="${url(it)}" loop muted playsinline preload="auto"></video>`);
+    s.insertAdjacentHTML('afterbegin',`<video class="main" src="${url(it)}" loop muted playsinline preload="metadata"></video>`);
     const v=s.querySelector('video'),p=s.querySelector('.prog');
     v.addEventListener('timeupdate',()=>{p.style.width=(v.duration?v.currentTime/v.duration*100:0)+'%'});
     s.onclick=()=>{ if(v.paused){s.classList.remove('paused');v.muted=!soundOn;v.play().catch(()=>{})}else{v.pause();s.classList.add('paused')} };
@@ -289,7 +289,7 @@ function folderItems(){return !curFolder||curFolder.all?items:items.filter(i=>fo
 function renderGrid(){
   const q=$('q').value.trim().toLowerCase();
   const nameOk=i=>i.name.toLowerCase().includes(q);
-  const fl=$('folders');fl.innerHTML='';
+  gridIO.disconnect();const fl=$('folders');fl.innerHTML='';
   let showFolders=false;
   if(!curFolder){
     let fs=folderList();
@@ -314,12 +314,23 @@ function renderGrid(){
 }
 function openFolder(f){curFolder=f;$('q').value='';renderGrid();document.querySelector('.sbody').scrollTop=0}
 let gridList=[],gridShown=0;const PAGE=90;
+const gridIO=new IntersectionObserver(es=>{
+  es.forEach(e=>{
+    const c=e.target,m=c.querySelector('img,video');if(!m)return;
+    if(e.isIntersecting){
+      if(m.dataset.on!=='1'){m.dataset.on='1';m.src=c.dataset.src+(m.tagName==='VIDEO'?'#t=0.1':'')}
+    }else if(m.dataset.on==='1'){
+      m.dataset.on='';m.removeAttribute('src');if(m.tagName==='VIDEO')m.load();
+    }
+  });
+},{root:document.querySelector('.sbody'),rootMargin:'500px 0px'});
 function appendCells(n){
   const list=gridList.slice(gridShown,gridShown+n);gridShown+=list.length;
   list.forEach(it=>{
     const c=document.createElement('button');c.className='cell';c.setAttribute('aria-label',it.name);
-    c.innerHTML=(isVid(it)?`<video src="${url(it)}#t=0.1" muted playsinline preload="metadata"></video><div class="vb">${ICON_PLAY}</div>`
-                          :`<img src="${url(it)}" loading="lazy" alt="">`)+(it.fav?`<div class="fv">${ICON_HEART_S}</div>`:'');
+    c.innerHTML=(isVid(it)?'<video muted playsinline preload="metadata"></video><div class="vb">'+ICON_PLAY+'</div>':'<img alt="">')+(it.fav?'<div class="fv">'+ICON_HEART_S+'</div>':'');
+    c.dataset.src=url(it);
+    gridIO.observe(c);
     c.onclick=()=>{const list=curFolder?folderItems():items;const nm=curFolder?curFolder.name:'Semua';closeSearch();renderFeed(it.id,list,nm)};
     grid.appendChild(c);
   });
@@ -340,6 +351,9 @@ function setCurrent(id){
   $('infoMt').textContent=(isVid(it)?'Video':'Foto')+' · '+fmt(it.added);
   $('likeBtn').classList.toggle('on',!!it.fav);
   $('count').textContent=viewName+' · '+(view.indexOf(it)+1)+' / '+view.length;
+  const sl=feed.querySelector('.slide[data-id="'+id+'"]');
+  const cv=sl&&sl.querySelector('video');if(cv)cv.preload='auto';
+  const ns=sl&&sl.nextElementSibling;const nv=ns&&ns.querySelector('video');if(nv)nv.preload='auto';
 }
 let bgPaused=false, searchOpen=false;
 function playCurrent(){
@@ -374,7 +388,7 @@ const near=new IntersectionObserver(es=>{
 /* ---------- menu galeri ---------- */
 function openSearch(){searchOpen=true;pauseAll();curFolder=null;$('q').value='';renderGrid();$('search').classList.add('open');$('search').setAttribute('aria-hidden','false');
   $('navHome').classList.remove('on');$('navGal').classList.add('on')}
-function closeSearch(){searchOpen=false;setTimeout(playCurrent,30);$('search').classList.remove('open');$('search').setAttribute('aria-hidden','true');$('q').blur();
+function closeSearch(){searchOpen=false;setTimeout(playCurrent,30);setTimeout(()=>{if(!searchOpen){gridIO.disconnect();grid.innerHTML='';$('folders').innerHTML=''}},450);$('search').classList.remove('open');$('search').setAttribute('aria-hidden','true');$('q').blur();
   $('navHome').classList.add('on');$('navGal').classList.remove('on')}
 $('openSearch').onclick=openSearch;$('navGal').onclick=openSearch;
 $('closeSearch').onclick=()=>{ if(curFolder){curFolder=null;$('q').value='';renderGrid()} else closeSearch() };
