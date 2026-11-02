@@ -207,10 +207,11 @@ function mount(s){
   const it=items.find(i=>i.id==s.dataset.id);if(!it)return;
   s.dataset.m='1';
   if(isVid(it)){
-    s.insertAdjacentHTML('afterbegin',`<video class="main" src="${url(it)}" loop muted playsinline preload="metadata"></video>`);
+    s.insertAdjacentHTML('afterbegin',`<video class="main" src="${url(it)}" loop muted playsinline preload="auto"></video>`);
     const v=s.querySelector('video'),p=s.querySelector('.prog');
     v.addEventListener('timeupdate',()=>{p.style.width=(v.duration?v.currentTime/v.duration*100:0)+'%'});
-    s.onclick=()=>{ if(v.paused){v.play();s.classList.remove('paused')}else{v.pause();s.classList.add('paused')} };
+    s.onclick=()=>{ if(v.paused){s.classList.remove('paused');v.muted=!soundOn;v.play().catch(()=>{})}else{v.pause();s.classList.add('paused')} };
+    if(String(s.dataset.id)===String(curId))playCurrent();
   }else{
     s.insertAdjacentHTML('afterbegin',`<img class="bg" src="${url(it)}" alt=""><img class="main" src="${url(it)}" alt="${baseName(it.name)}">`);
   }
@@ -240,6 +241,7 @@ function renderFeed(keepId,list){
     const el=feed.querySelector(`.slide[data-id="${target}"]`);if(el)mount(el);
     goTo(target,true);
     setCurrent(target);
+    setTimeout(playCurrent,60);setTimeout(playCurrent,350);
   }
 }
 const folderKey=it=>it.folder||'Unggahan';
@@ -313,13 +315,29 @@ function setCurrent(id){
   $('likeBtn').classList.toggle('on',!!it.fav);
   $('count').textContent=(view.indexOf(it)+1)+' / '+view.length;
 }
+let bgPaused=false, searchOpen=false;
+function playCurrent(){
+  if(bgPaused||searchOpen)return;
+  const s=feed.querySelector(`.slide[data-id="${curId}"]`);if(!s)return;
+  const v=s.querySelector('video');if(!v||s.classList.contains('paused'))return;
+  v.loop=true;v.muted=!soundOn;
+  const p=v.play();
+  if(p&&p.catch)p.catch(()=>{v.muted=true;v.play().catch(()=>{})});
+}
+function pauseAll(){feed.querySelectorAll('video').forEach(v=>v.pause())}
+/* aplikasi ke background / layar mati -> jeda; kembali -> lanjut */
+window.__bg=on=>{bgPaused=!!on;on?pauseAll():playCurrent()};
+document.addEventListener('visibilitychange',()=>window.__bg(document.hidden));
+window.addEventListener('pagehide',()=>window.__bg(true));
+window.addEventListener('pageshow',()=>window.__bg(document.hidden));
+
 const io=new IntersectionObserver(es=>{
   es.forEach(e=>{
     const v=e.target.querySelector('video');
     if(e.isIntersecting&&e.intersectionRatio>=.6){
       setCurrent(e.target.dataset.id);
-      if(v){v.muted=!soundOn;e.target.classList.remove('paused');v.play().catch(()=>{})}
-    }else if(v){v.pause();v.currentTime=0}
+      if(v){e.target.classList.remove('paused');playCurrent()}
+    }else if(v){v.pause();try{v.currentTime=0}catch(_){}}
   });
 },{root:feed,threshold:[.6]});
 
@@ -328,9 +346,9 @@ const near=new IntersectionObserver(es=>{
 },{root:feed,rootMargin:'100% 0px'});
 
 /* ---------- menu galeri ---------- */
-function openSearch(){curFolder=null;$('q').value='';renderGrid();$('search').classList.add('open');$('search').setAttribute('aria-hidden','false');
+function openSearch(){searchOpen=true;pauseAll();curFolder=null;$('q').value='';renderGrid();$('search').classList.add('open');$('search').setAttribute('aria-hidden','false');
   $('navHome').classList.remove('on');$('navGal').classList.add('on')}
-function closeSearch(){$('search').classList.remove('open');$('search').setAttribute('aria-hidden','true');$('q').blur();
+function closeSearch(){searchOpen=false;setTimeout(playCurrent,30);$('search').classList.remove('open');$('search').setAttribute('aria-hidden','true');$('q').blur();
   $('navHome').classList.add('on');$('navGal').classList.remove('on')}
 $('openSearch').onclick=openSearch;$('navGal').onclick=openSearch;
 $('closeSearch').onclick=()=>{ if(curFolder){curFolder=null;$('q').value='';renderGrid()} else closeSearch() };
@@ -369,6 +387,7 @@ $('sound').onclick=()=>{
   $('soundOn').style.display=soundOn?'block':'none';
   $('soundOff').style.display=soundOn?'none':'block';
   feed.querySelectorAll('video').forEach(v=>v.muted=!soundOn);
+  playCurrent();
 };
 
 window.addEventListener('error',e=>{
