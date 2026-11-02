@@ -56,13 +56,21 @@ echo "PERINGATAN: KEYSTORE_B64 belum diisi, APK memakai kunci sementara (tidak b
 fi
 
 # ikon aplikasi dari icon.png (jika ada) + layar pembuka hitam
-if [ -f icon.png ]; then
+ICON=""
+for f in icon.png logo2.jpg; do
+  if [ -f "$f" ]; then ICON="$f"; break; fi
+done
+if [ -n "$ICON" ]; then
+export ICON
 python3 -c "import PIL" 2>/dev/null || python3 -m pip install -q --break-system-packages pillow
 python3 - <<'PY'
 import os, glob
 from PIL import Image, ImageDraw
 res = 'android/app/src/main/res'
-src = Image.open('icon.png').convert('RGBA')
+src = Image.open(os.environ['ICON']).convert('RGBA')
+w0, h0 = src.size
+sd = min(w0, h0)
+src = src.crop(((w0 - sd) // 2, (h0 - sd) // 2, (w0 - sd) // 2 + sd, (h0 - sd) // 2 + sd))
 legacy = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
 fore = {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432}
 for d, s in legacy.items():
@@ -88,5 +96,5 @@ for sp in glob.glob(f'{res}/drawable*/splash.png'):
 print('Ikon aplikasi: DIPASANG')
 PY
 else
-echo "icon.png tidak ada, memakai ikon bawaan."
+echo "icon.png / logo2.jpg tidak ada, memakai ikon bawaan."
 fi
