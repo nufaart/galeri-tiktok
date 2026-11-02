@@ -12,6 +12,25 @@ import com.getcapacitor.BridgeActivity;
 import java.io.File;
 
 public class MainActivity extends BridgeActivity {
+    /** Batas cache + data WebView. Jika terlewati, cache dibersihkan otomatis. */
+    private static final long LIMIT_BYTES = 50L * 1024 * 1024;
+    private static final String[] CACHE_DIRS = {
+        "Cache", "Code Cache", "GPUCache", "DawnCache", "GrShaderCache", "ShaderCache",
+        "Service Worker", "blob_storage", "component_crx_cache"
+    };
+    private final Handler guard = new Handler(Looper.getMainLooper());
+    private final Runnable guardTask = new Runnable() {
+        @Override
+        public void run() {
+            new Thread(() -> {
+                try {
+                    if (usedBytes() > LIMIT_BYTES) runOnUiThread(MainActivity.this::trimCaches);
+                } catch (Exception ignored) {}
+            }).start();
+            guard.postDelayed(this, 60000);
+        }
+    };
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(GalleryPlugin.class);
@@ -41,7 +60,28 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    /** Bersihkan cache WebView agar penyimpanan tidak membengkak. Folder "updates" tidak disentuh. */
+    private static long dirSize(File f) {
+        if (f == null || !f.exists()) return 0;
+        if (f.isFile()) return f.length();
+        long t = 0;
+        File[] kids = f.listFiles();
+        if (kids != null) {
+            for (File c : kids) {
+                if ("updates".equals(c.getName())) continue;
+                t += dirSize(c);
+            }
+        }
+        return t;
+    }
+
+    /** Total cache + data WebView yang bisa dibersihkan (di luar aplikasi itu sendiri). */
+    private long usedBytes() {
+        return dirSize(getCacheDir())
+            + dirSize(getCodeCacheDir())
+            + dirSize(new File(getApplicationInfo().dataDir, "app_webview"));
+    }
+
+    /** Bersihkan cache WebView agar penyimpanan tidak membengkak. Folder "updates" dan data suka tidak disentuh. */
     private void trimCaches() {
         try {
             WebView wv = getBridge().getWebView();
@@ -56,9 +96,13 @@ public class MainActivity extends BridgeActivity {
                     k.delete();
                 }
             }
-            File web = new File(getApplicationInfo().dataDir, "app_webview/Default");
-            clearDir(new File(web, "Code Cache"));
-            clearDir(new File(web, "GPUCache"));
+            clearDir(getCodeCacheDir());
+            File root = new File(getApplicationInfo().dataDir, "app_webview");
+            File web = new File(root, "Default");
+            for (String n : CACHE_DIRS) {
+                clearDir(new File(web, n));
+                clearDir(new File(root, n));
+            }
         } catch (Exception ignored) {}
     }
 
@@ -84,6 +128,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         bg(true);
+        guard.removeCallbacks(guardTask);
         super.onPause();
     }
 
@@ -100,5 +145,7 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         bg(false);
         sendInsets();
+        guard.removeCallbacks(guardTask);
+        guard.postDelayed(guardTask, 20000);
     }
 }
