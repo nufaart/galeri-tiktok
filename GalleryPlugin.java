@@ -210,4 +210,22 @@ public class GalleryPlugin extends Plugin {
             call.reject("ERR: " + e.getMessage());
         }
     }
+
+    /** Buka tautan https di browser (untuk login Google dan pemilih Google Foto). */
+    @PluginMethod
+    public void openUrl(PluginCall call) {
+        String u = call.getString("url");
+        if (u == null || !u.startsWith("https://")) {
+            call.reject("URL tidak valid");
+            return;
+        }
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(u));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("ERR: " + e.getMessage());
+        }
+    }
 }
