@@ -1,0 +1,6 @@
+{
+  "appId": "com.iqbal.galeri",
+  "appName": "Galeri",
+  "webDir": "www",
+  "android": { "backgroundColor": "#000000" }
+}
